@@ -1,0 +1,466 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Motion Audit</title>
+<style>
+:root{
+  --bg:#fbfaf8; --surface:#fff; --surface-2:#f4f2ee; --ink:#191a18; --muted:#5f6460;
+  --line:#e3e0da; --accent:#2f5d50;
+  --bad:#b3261e; --bad-bg:#fdeceb; --warn:#8a5a00; --warn-bg:#fdf3e2;
+  --ok:#1f6b45; --ok-bg:#e9f5ee; --info:#2d4f7c; --info-bg:#ebf1f9;
+  --radius:12px; --shadow:0 1px 2px rgba(0,0,0,.05),0 8px 24px rgba(0,0,0,.05);
+  --mono:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+  --sans:system-ui,-apple-system,"Segoe UI",sans-serif;
+}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){
+  --bg:#141514; --surface:#1c1e1c; --surface-2:#242725; --ink:#eceae6; --muted:#a2a8a3;
+  --line:#32352f; --accent:#7fc0ab;
+  --bad:#ff9d93; --bad-bg:#3a1b18; --warn:#ffc96b; --warn-bg:#352711;
+  --ok:#86d9a8; --ok-bg:#15301f; --info:#a8c6ea; --info-bg:#1a2635;
+  --shadow:0 1px 2px rgba(0,0,0,.4),0 8px 24px rgba(0,0,0,.3);
+}}
+:root[data-theme="dark"]{
+  --bg:#141514; --surface:#1c1e1c; --surface-2:#242725; --ink:#eceae6; --muted:#a2a8a3;
+  --line:#32352f; --accent:#7fc0ab;
+  --bad:#ff9d93; --bad-bg:#3a1b18; --warn:#ffc96b; --warn-bg:#352711;
+  --ok:#86d9a8; --ok-bg:#15301f; --info:#a8c6ea; --info-bg:#1a2635;
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font-family:var(--sans);
+  font-size:16px;line-height:1.6;-webkit-text-size-adjust:100%}
+.wrap{max-width:860px;margin:0 auto;padding:40px 16px 80px}
+h1{font-size:1.75rem;line-height:1.2;margin:0 0 6px;letter-spacing:-.02em}
+h2{font-size:1.15rem;margin:40px 0 14px;letter-spacing:-.01em}
+h3{font-size:1rem;margin:0}
+p{margin:0 0 12px}
+a{color:var(--accent)}
+.sub{color:var(--muted);font-size:.9rem;margin:0}
+.banner{margin:20px 0;padding:14px 16px;border-radius:var(--radius);
+  background:var(--warn-bg);color:var(--warn);border:1px solid currentColor;font-size:.9rem}
+.verdict{margin:24px 0 0;padding:20px;background:var(--surface);border:1px solid var(--line);
+  border-radius:var(--radius);box-shadow:var(--shadow)}
+.verdict p:last-child{margin:0}
+.metrics{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:12px;margin:16px 0 0}
+.metric{padding:14px;border-radius:var(--radius);border:1px solid var(--line);background:var(--surface-2)}
+.metric .v{font-size:1.6rem;font-weight:700;line-height:1.1;font-variant-numeric:tabular-nums}
+.metric .n{font-size:.78rem;text-transform:uppercase;letter-spacing:.07em;color:var(--muted);margin-bottom:4px}
+.metric .cap{font-size:.85rem;color:var(--muted);margin-top:6px}
+.metric .th{font-size:.78rem;color:var(--muted);margin-top:2px}
+.metric.good .v{color:var(--ok)} .metric.warn .v{color:var(--warn)} .metric.bad .v{color:var(--bad)}
+.metric.none .v{color:var(--muted);font-size:1.1rem}
+.top3{margin:16px 0 0;padding:0;list-style:none;counter-reset:t}
+.top3 li{counter-increment:t;position:relative;padding:10px 0 10px 38px;border-top:1px solid var(--line)}
+.top3 li::before{content:counter(t);position:absolute;left:0;top:10px;width:24px;height:24px;
+  border-radius:50%;background:var(--accent);color:var(--bg);display:grid;place-items:center;
+  font-size:.8rem;font-weight:700}
+.counts{display:flex;flex-wrap:wrap;gap:8px;margin:0 0 4px}
+.pill{display:inline-flex;align-items:center;gap:6px;padding:4px 11px;border-radius:999px;
+  font-size:.82rem;font-weight:600;border:1px solid transparent;white-space:nowrap}
+.pill.s1{background:var(--bad-bg);color:var(--bad);border-color:currentColor}
+.pill.s2{background:var(--warn-bg);color:var(--warn);border-color:currentColor}
+.pill.s3{background:var(--info-bg);color:var(--info);border-color:currentColor}
+.pill.ok{background:var(--ok-bg);color:var(--ok);border-color:currentColor}
+.pill.eff{background:var(--surface-2);color:var(--muted);border-color:var(--line)}
+.pill.tag{background:transparent;color:var(--muted);border-color:var(--line);font-weight:500;
+  font-family:var(--mono);font-size:.74rem}
+.filters{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin:0 0 16px}
+.filters button{font:inherit;font-size:.84rem;padding:5px 12px;border-radius:999px;cursor:pointer;
+  background:var(--surface);color:var(--muted);border:1px solid var(--line)}
+.filters button[aria-pressed="true"]{background:var(--ink);color:var(--bg);border-color:var(--ink)}
+.group{margin:0 0 8px;font-size:.8rem;text-transform:uppercase;letter-spacing:.07em;color:var(--muted)}
+.card{background:var(--surface);border:1px solid var(--line);border-radius:var(--radius);
+  padding:18px;margin:0 0 12px;box-shadow:var(--shadow)}
+.card.s1{border-left:4px solid var(--bad)}
+.card.s2{border-left:4px solid var(--warn)}
+.card.s3{border-left:4px solid var(--info)}
+.card .meta{display:flex;flex-wrap:wrap;gap:7px;margin:10px 0 0}
+.symptom{margin:10px 0 0;font-size:1.02rem}
+.howto{margin:12px 0 0;padding:10px 12px;background:var(--surface-2);border-radius:8px;
+  font-size:.9rem;color:var(--muted)}
+.howto b{color:var(--ink);font-weight:600}
+.card img{display:block;max-width:100%;height:auto;margin:12px 0 0;border-radius:8px;border:1px solid var(--line)}
+details{margin:12px 0 0;border-top:1px solid var(--line);padding-top:10px}
+details summary{cursor:pointer;font-size:.88rem;color:var(--accent);font-weight:600;list-style:none}
+details summary::-webkit-details-marker{display:none}
+details summary::before{content:"▸ ";font-size:.8em}
+details[open] summary::before{content:"▾ "}
+.loc{font-family:var(--mono);font-size:.8rem;color:var(--muted);margin:10px 0 0;word-break:break-all}
+pre{margin:8px 0 0;padding:12px;background:var(--surface-2);border:1px solid var(--line);
+  border-radius:8px;overflow-x:auto;font-family:var(--mono);font-size:.8rem;line-height:1.5}
+pre.before{border-left:3px solid var(--bad)} pre.after{border-left:3px solid var(--ok)}
+.lbl{font-size:.74rem;text-transform:uppercase;letter-spacing:.07em;color:var(--muted);margin:10px 0 0}
+table{width:100%;border-collapse:collapse;font-size:.86rem;margin:0}
+.scroll{overflow-x:auto;-webkit-overflow-scrolling:touch}
+th,td{text-align:left;padding:8px 10px;border-bottom:1px solid var(--line);vertical-align:top}
+th{font-size:.76rem;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);font-weight:600}
+td code{font-family:var(--mono);font-size:.84em}
+.dup{color:var(--warn);font-weight:600}
+.okl{margin:0;padding:0;list-style:none}
+.okl li{padding:8px 0;border-bottom:1px solid var(--line);font-size:.92rem;display:flex;gap:9px}
+.okl li::before{content:"✓";color:var(--ok);font-weight:700;flex:none}
+footer{margin:48px 0 0;padding-top:20px;border-top:1px solid var(--line);font-size:.86rem;color:var(--muted)}
+.empty{padding:20px;text-align:center;color:var(--muted);font-size:.9rem}
+@media print{
+  .filters,.theme{display:none}
+  details{display:block} details>*:not(summary){display:revert}
+  .card{break-inside:avoid;box-shadow:none}
+  body{background:#fff;color:#000}
+}
+.theme{position:fixed;top:12px;right:12px;font:inherit;font-size:.8rem;padding:5px 11px;
+  border-radius:999px;background:var(--surface);color:var(--muted);border:1px solid var(--line);cursor:pointer}
+</style>
+</head>
+<body>
+<button class="theme" id="theme" type="button">Light / dark</button>
+<div class="wrap">
+  <header>
+    <h1 id="title">Motion Audit</h1>
+    <p class="sub" id="subtitle"></p>
+  </header>
+  <div id="banner"></div>
+
+  <section class="verdict">
+    <p id="verdict"></p>
+    <div class="metrics" id="metrics"></div>
+  </section>
+
+  <h2>If you only fix three things</h2>
+  <ol class="top3" id="top3"></ol>
+
+  <h2>Findings</h2>
+  <div class="counts" id="counts"></div>
+  <div class="filters" id="filters" role="group" aria-label="Filter findings"></div>
+  <div id="findings"></div>
+
+  <h2>What's already right</h2>
+  <ul class="okl" id="goodlist"></ul>
+
+  <h2>Easings and durations in use</h2>
+  <div class="scroll"><table id="inventory">
+    <thead><tr><th>Value</th><th>Kind</th><th>Where it appears</th></tr></thead>
+    <tbody></tbody>
+  </table></div>
+
+  <footer>
+    <h3>Method and limits</h3>
+    <div id="method"></div>
+  </footer>
+</div>
+
+<script>
+/* ============================================================================
+   REPORT_DATA — replace this whole object with the audit's own findings.
+   The values below are a fictional worked example. Replace the whole object.
+   so the expected shape and the expected TONE are both visible.
+
+   severity: 1 = breaks the feel | 2 = looks unpolished | 3 = polish
+   status:   "measured" | "confirmed" | "unverified"
+   symptom:  PLAIN LANGUAGE. No selectors, no property names, no metric names.
+   howto:    how the reader can see it with their own eyes.
+   ========================================================================== */
+const REPORT_DATA = {
+  "site": "example-store.test",
+  "date": "2026-01-15",
+  "scope": "Home and Product pages. Measured on the live site, cold load, no throttling. (Worked example — replace with your own audit.)",
+  "measured": true,
+  "verdict": "The motion here is well judged: the curves are right and the page does not jump while it loads. The problems are all of one kind — an animation that is written correctly but is quietly cancelled by something else, so the visitor never sees it. None of this is a redesign; it is a handful of small conflicts to untangle.",
+  "metrics": [
+    {
+      "name": "CLS",
+      "value": "0.00",
+      "state": "good",
+      "caption": "How much the page jumps around while it loads. Nothing moves — as good as it gets.",
+      "threshold": "Good is 0.10 or less"
+    },
+    {
+      "name": "LCP",
+      "value": "1.4 s",
+      "state": "warn",
+      "caption": "How long until the main content appears. Most of the wait is the page holding its own text back, not downloading it.",
+      "threshold": "Good is under 2.5 s"
+    },
+    {
+      "name": "INP",
+      "value": "not measured",
+      "state": "none",
+      "caption": "How quickly the page answers a tap or click.",
+      "threshold": "Needs a real interaction trace"
+    }
+  ],
+  "top3": [
+    "Let go of the product cards once their entrance has finished, so the hover lift that was designed for them can actually happen.",
+    "Move the pressed state of buttons after their hover state, so clicking with a mouse visibly does something.",
+    "Replace the site-wide “switch off all motion” rule with one that keeps gentle fades for visitors who asked for less movement."
+  ],
+  "findings": [
+    {
+      "id": "f1",
+      "page": "Home page",
+      "severity": 1,
+      "effort": "30 min",
+      "status": "measured",
+      "title": "The hover lift on the product cards never happens",
+      "symptom": "The cards are meant to lift slightly when the mouse is over them. They don't. The entrance animation finishes and then holds onto each card forever, so the hover effect has no way to take over.",
+      "howto": "Open the home page, let the cards fade in, then move the mouse over one. It stays completely still.",
+      "detail": "After the reveal the card keeps an inline style of its own. An inline style always outranks a rule in a stylesheet unless that rule is marked important, so the hover rule can never apply.",
+      "location": "components/reveals.ts:48 vs styles/cards.css:112 — measured inline value on the live site",
+      "before": "gsap.fromTo(cards,\n  { autoAlpha: 0, y: 30 },\n  { autoAlpha: 1, y: 0, duration: 0.6, stagger: 0.07 });",
+      "after": "gsap.fromTo(cards,\n  { autoAlpha: 0, y: 30 },\n  { autoAlpha: 1, y: 0, duration: 0.6, stagger: 0.07,\n    // hand the element back to CSS when the entrance ends:\n    clearProps: \"transform,opacity,visibility\" });",
+      "rule": "GSAP pack G6 — inline-transform leak; AUDIT 9 — does the rule win?"
+    },
+    {
+      "id": "f2",
+      "page": "Whole site",
+      "severity": 1,
+      "effort": "5 min",
+      "status": "confirmed",
+      "title": "Buttons give no reaction when clicked with a mouse",
+      "symptom": "Pressing a button on a computer produces no visible reaction — the small 'push in' never shows. It works on a phone. So the visitors least likely to get feedback are the ones on a desktop, where it matters most because there is no physical touch.",
+      "howto": "On a computer, click and hold any button. It does not move. Do the same on a phone and it does push in slightly.",
+      "detail": "Both rules style the same property with the same strength, so the one written later wins. While the mouse is over the button — which it always is while clicking — hover wins and the press is never seen.",
+      "location": "styles/buttons.css:22 (.button:active) vs styles/buttons.css:190 (.button:hover)",
+      "before": ".button:active { transform: scale(.98); }\n/* ... later in the file ... */\n@media (hover: hover) and (pointer: fine) {\n  .button:hover { transform: translateY(-2px); }\n}",
+      "after": "@media (hover: hover) and (pointer: fine) {\n  .button:hover  { transform: translateY(-2px); }\n  .button:active { transform: translateY(0) scale(.97); }  /* after hover */\n}\n@media (hover: none) {\n  .button:active { transform: scale(.97); }\n}",
+      "rule": "AUDIT 9 — declaration order at equal specificity"
+    },
+    {
+      "id": "f3",
+      "page": "Whole site",
+      "severity": 2,
+      "effort": "30 min",
+      "status": "measured",
+      "title": "Visitors who ask for less motion get none, and lose colour feedback too",
+      "symptom": "Someone who has switched on 'reduce motion' gets a site where nothing fades — not the menu, and not the gentle colour change on links and buttons. The setting means 'calmer', not 'off'. Removing the colour fades makes the site harder to follow, and flattens the outline that shows where the keyboard is.",
+      "howto": "Turn on Reduce Motion in your system accessibility settings, reload, and hover a menu link. The colour snaps instead of fading.",
+      "detail": "Measured under browser emulation. Every transition computes to 0.00001s, including ones that involve no movement at all.",
+      "location": "styles/base.css:410 — the blanket reset",
+      "before": "@media (prefers-reduced-motion: reduce) {\n  *, *::before, *::after {\n    animation-duration: .01ms !important;\n    transition-duration: .01ms !important;\n  }\n}",
+      "after": "@media (prefers-reduced-motion: reduce) {\n  html { scroll-behavior: auto; }\n\n  /* Remove movement, keep a short fade. */\n  .entrance, .reveal {\n    animation: none; opacity: 1; transform: none;\n    transition: opacity 150ms ease;\n  }\n\n  /* Stop ambient loops outright. */\n  .float, .halo, .marquee { animation: none; }\n\n  /* Colour, border, background and focus transitions stay as they are. */\n}",
+      "rule": "AUDIT 6a — reduced motion means gentler, not zero"
+    },
+    {
+      "id": "f4",
+      "page": "Product page",
+      "severity": 2,
+      "effort": "30 min",
+      "status": "measured",
+      "title": "Opening a details panel shoves the page down with a jolt",
+      "symptom": "Opening the delivery details makes everything below jump down instantly. The text inside fades in nicely, but the gap it needs has already appeared in a single frame, so the fade lands on top of a jolt that already happened.",
+      "howto": "Open a product page and expand 'Delivery and returns' while watching the content below it. It snaps rather than opening.",
+      "detail": "Measured: the section height changes in one frame, identical immediately after the click and 450ms later. Only the inner content is animated, not the height of the disclosure element.",
+      "location": "components/accordion.ts:31 — animates the contents, not the <details> height",
+      "before": "details.addEventListener(\"toggle\", () => {\n  if (!details.open) return;\n  gsap.fromTo(answer, { autoAlpha: 0, y: -8 }, { autoAlpha: 1, y: 0, duration: 0.3 });\n});",
+      "after": "/* Animate the height itself. Modern CSS can do this with no JS: */\n:root { interpolate-size: allow-keywords; }\n\n.disclosure::details-content {\n  block-size: 0;\n  overflow: hidden;\n  transition: block-size 250ms var(--ease-out), content-visibility 250ms allow-discrete;\n}\n.disclosure[open]::details-content { block-size: auto; }",
+      "rule": "AUDIT 6b — native elements that snap"
+    },
+    {
+      "id": "f5",
+      "page": "Home page",
+      "severity": 2,
+      "effort": "a few hours",
+      "status": "measured",
+      "title": "The main headline waits for its own animation before it appears",
+      "symptom": "The biggest piece of text on the page is what the browser measures the page's speed by — and it is text, already present, needing nothing downloaded. Yet it takes over a second to show, because it starts invisible and waits for its fade-in. The page is holding its own content back.",
+      "howto": "Throttle the network to 'Slow 4G' and reload. The headline is the last thing to settle, well after the layout is in place.",
+      "detail": "Measured: 93% of the wait was 'render delay' — the browser waiting, not downloading. Two systems hide the text in turn: a CSS entrance keyframe, then a JS timeline that hides it again and fades it in.",
+      "location": "styles/base.css:150 (.entrance) and components/hero.ts:24",
+      "before": ".entrance { animation: enter .7s both var(--ease-out); }\n/* then, in JS: */\ntimeline.from(copy, { autoAlpha: 0, y: 26, duration: 0.68 }, 0.2);",
+      "after": "/* Never fade the element the browser measures. Slide it instead,\n   so it paints immediately and still animates. */\n@keyframes enter-slide { from { transform: translateY(22px); } to { transform: none; } }\n.hero-copy.entrance { animation-name: enter-slide; }\n\ntimeline.from(copy, { y: 26, duration: 0.6 }, 0.1);",
+      "rule": "RUNTIME.md — a large render delay means motion is gating the content"
+    },
+    {
+      "id": "f6",
+      "page": "Home page",
+      "severity": 3,
+      "effort": "30 min",
+      "status": "confirmed",
+      "title": "Four things drift forever in the hero, and none of them stop",
+      "symptom": "Several decorative elements drift gently and never stop — four separate never-ending animations in one screenful. They keep running long after the visitor has scrolled past. It suits the brand, so this is a judgement call rather than a mistake, but two would read the same as four.",
+      "howto": "Open the home page, scroll to the bottom, and the hero animations are still running behind you.",
+      "detail": "Four repeat:-1, yoyo:true tweens are created for the hero, none tied to whether the hero is on screen.",
+      "location": "components/hero.ts:60-98",
+      "before": "gsap.to(halo, { rotate: 10, duration: 6, ease: \"sine.inOut\", repeat: -1, yoyo: true });",
+      "after": "const loop = gsap.to(halo, { rotate: 10, duration: 6,\n  ease: \"sine.inOut\", repeat: -1, yoyo: true });\n\nScrollTrigger.create({\n  trigger: hero,\n  start: \"top bottom\", end: \"bottom top\",\n  onToggle: (self) => self.isActive ? loop.play() : loop.pause(),\n});",
+      "rule": "AUDIT 1 — cap ambient loops, pause them off-screen; GSAP pack G8"
+    }
+  ],
+  "good": [
+    "The page does not move at all while it loads. Layout shift measured 0.00 — the best possible result, and the thing most sites get wrong.",
+    "Every easing curve is the right one for its job: strong ease-outs on entrances, linear on the scroll-driven parallax, gentle in-out on the ambient drifting.",
+    "No animation uses the sluggish 'ease-in' curve, nothing scales up from nothing, and there is not a single 'transition: all' in the stylesheet.",
+    "Scroll reveals fire once and do not replay every time a section passes — the right call.",
+    "Most hover effects that move something are correctly restricted to devices with a real mouse."
+  ],
+  "inventory": [
+    {
+      "value": "--ease-out: cubic-bezier(.22, 1, .36, 1)",
+      "kind": "easing token (CSS)",
+      "where": "styles/base.css:18 — used in 4 places",
+      "dup": false
+    },
+    {
+      "value": "--ease-out-soft: cubic-bezier(.25, 1, .5, 1)",
+      "kind": "easing token (CSS)",
+      "where": "styles/base.css:19 — near-identical to the row above",
+      "dup": true
+    },
+    {
+      "value": "ease (built-in)",
+      "kind": "easing (CSS)",
+      "where": "18 declarations across 6 stylesheets — the tokens are bypassed",
+      "dup": true
+    },
+    {
+      "value": "power3.out / power4.out",
+      "kind": "easing (JS)",
+      "where": "two curve families for the same intent",
+      "dup": true
+    },
+    {
+      "value": ".2s / .22s / .25s / .3s",
+      "kind": "duration (CSS)",
+      "where": "four near-identical values hand-typed across 15 declarations",
+      "dup": true
+    },
+    {
+      "value": "0.09 – 0.13 s",
+      "kind": "stagger (JS)",
+      "where": "above the 30–80ms band that reads as one group",
+      "dup": true
+    }
+  ],
+  "method": [
+    "This is a fictional worked example shipped with the skill so the expected shape and tone are both visible. Replace REPORT_DATA with your own audit.",
+    "A real report states where it measured, on what, and under what conditions — cold load, throttling, how many runs.",
+    "It names what was excluded as not shipped: mirrored trees, build output, design comps.",
+    "It states plainly what could NOT be measured, rather than guessing a number.",
+    "It records the commit the source was read at, and confirms no file was modified."
+  ]
+};
+
+/* ===================== renderer — no need to edit below ===================== */
+(function(){
+  var D = REPORT_DATA;
+  var SEV = {1:{l:"Breaks the feel",c:"s1"},2:{l:"Looks unpolished",c:"s2"},3:{l:"Polish",c:"s3"}};
+  var esc = function(s){ return String(s==null?"":s)
+    .replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;"); };
+  var $ = function(id){ return document.getElementById(id); };
+
+  document.title = "Motion Audit — " + D.site;
+  $("title").textContent = "Motion Audit — " + D.site;
+  $("subtitle").textContent = D.date + " · " + D.scope;
+  $("verdict").textContent = D.verdict;
+
+  if (!D.measured) {
+    $("banner").innerHTML = '<div class="banner"><b>Nothing was measured.</b> ' +
+      'This audit read the code only — no version of the site was loaded. ' +
+      'Findings about speed and jumping are predictions, not measurements.</div>';
+  }
+
+  $("metrics").innerHTML = (D.metrics||[]).map(function(m){
+    return '<div class="metric ' + esc(m.state) + '">' +
+      '<div class="n">' + esc(m.name) + '</div>' +
+      '<div class="v">' + esc(m.value) + '</div>' +
+      '<div class="th">' + esc(m.threshold) + '</div>' +
+      '<div class="cap">' + esc(m.caption) + '</div></div>';
+  }).join("");
+
+  $("top3").innerHTML = (D.top3||[]).map(function(t){
+    return "<li>" + esc(t) + "</li>";
+  }).join("");
+
+  var fs = D.findings || [];
+  var n1 = fs.filter(function(f){return f.severity===1;}).length;
+  var n2 = fs.filter(function(f){return f.severity===2;}).length;
+  var n3 = fs.filter(function(f){return f.severity===3;}).length;
+  var counts = [];
+  if (n1) counts.push('<span class="pill s1">' + n1 + " break the feel</span>");
+  if (n2) counts.push('<span class="pill s2">' + n2 + " look unpolished</span>");
+  if (n3) counts.push('<span class="pill s3">' + n3 + " polish</span>");
+  if ((D.good||[]).length) counts.push('<span class="pill ok">' + D.good.length + " already right</span>");
+  $("counts").innerHTML = counts.join("");
+
+  function card(f){
+    var s = SEV[f.severity] || SEV[3];
+    var h = '<article class="card ' + s.c + '" data-sev="' + f.severity +
+            '" data-eff="' + esc(f.effort) + '" id="' + esc(f.id) + '">';
+    h += "<h3>" + esc(f.title) + "</h3>";
+    h += '<div class="meta"><span class="pill ' + s.c + '">' + s.l + "</span>" +
+         '<span class="pill eff">' + esc(f.effort) + "</span>" +
+         '<span class="pill tag">' + esc(f.status) + "</span>" +
+         '<span class="pill tag">' + esc(f.page) + "</span></div>";
+    h += '<p class="symptom">' + esc(f.symptom) + "</p>";
+    if (f.shot) h += '<img src="' + esc(f.shot) + '" alt="" loading="lazy">';
+    if (f.howto) h += '<p class="howto"><b>See it yourself:</b> ' + esc(f.howto) + "</p>";
+    h += "<details><summary>Technical detail</summary>";
+    if (f.detail) h += "<p>" + esc(f.detail) + "</p>";
+    if (f.location) h += '<p class="loc">' + esc(f.location) + "</p>";
+    if (f.before){ h += '<div class="lbl">Now</div><pre class="before">' + esc(f.before) + "</pre>"; }
+    if (f.after){ h += '<div class="lbl">Change to</div><pre class="after">' + esc(f.after) + "</pre>"; }
+    if (f.rule) h += '<p class="loc">Rule: ' + esc(f.rule) + "</p>";
+    h += "</details></article>";
+    return h;
+  }
+
+  var order = {}, groups = [];
+  fs.slice().sort(function(a,b){ return a.severity - b.severity; }).forEach(function(f){
+    if (!(f.page in order)){ order[f.page] = []; groups.push(f.page); }
+    order[f.page].push(f);
+  });
+  $("findings").innerHTML = groups.map(function(g){
+    return '<div class="group">' + esc(g) + "</div>" + order[g].map(card).join("");
+  }).join("") + '<p class="empty" id="noneMsg" hidden>Nothing matches that filter.</p>';
+
+  var filters = [["all","Everything"],["1","Breaks the feel"],["2","Looks unpolished"],
+                 ["3","Polish"],["quick","Quick wins"]];
+  $("filters").innerHTML = filters.map(function(f){
+    return '<button type="button" data-f="' + f[0] + '" aria-pressed="' +
+      (f[0]==="all") + '">' + esc(f[1]) + "</button>";
+  }).join("");
+
+  $("filters").addEventListener("click", function(e){
+    var b = e.target.closest("button"); if (!b) return;
+    var f = b.dataset.f;
+    Array.prototype.forEach.call($("filters").querySelectorAll("button"), function(x){
+      x.setAttribute("aria-pressed", String(x === b));
+    });
+    var shown = 0;
+    Array.prototype.forEach.call(document.querySelectorAll(".card"), function(c){
+      var ok = f === "all" ? true
+        : f === "quick" ? /min/.test(c.dataset.eff)
+        : c.dataset.sev === f;
+      c.hidden = !ok; if (ok) shown++;
+    });
+    Array.prototype.forEach.call(document.querySelectorAll(".group"), function(g){
+      var el = g.nextElementSibling, any = false;
+      while (el && el.classList.contains("card")){ if (!el.hidden) any = true; el = el.nextElementSibling; }
+      g.hidden = !any;
+    });
+    $("noneMsg").hidden = shown > 0;
+  });
+
+  $("goodlist").innerHTML = (D.good||[]).map(function(g){
+    return "<li><span>" + esc(g) + "</span></li>";
+  }).join("");
+
+  $("inventory").querySelector("tbody").innerHTML = (D.inventory||[]).map(function(i){
+    return "<tr><td><code>" + esc(i.value) + "</code></td><td>" + esc(i.kind) + "</td><td" +
+      (i.dup ? ' class="dup"' : "") + ">" + esc(i.where) + "</td></tr>";
+  }).join("");
+
+  $("method").innerHTML = (D.method||[]).map(function(m){
+    return "<p>" + esc(m) + "</p>";
+  }).join("");
+
+  $("theme").addEventListener("click", function(){
+    var cur = document.documentElement.getAttribute("data-theme");
+    var dark = cur ? cur === "dark"
+      : window.matchMedia("(prefers-color-scheme: dark)").matches;
+    document.documentElement.setAttribute("data-theme", dark ? "light" : "dark");
+  });
+})();
+</script>
+</body>
+</html>
